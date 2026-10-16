@@ -74,11 +74,13 @@ puts "SHA-256: #{capture.evidence.first[:sha256]}"
 
 `Reader.new(session:, clock:).read(command)` 返回 `Capture`。通过 `success?`、`skipped?`、`failure`、`evidence` 检查结果；正文仅显式通过 `body` 读取，`to_h`、`as_json`、`inspect` 不包含正文。
 
-会话实现 `connected?` 和 `send_commands([command])`。回执提供 `output`、布尔 `success?`、数组 `steps`、成功正文 `value!` 及失败时的 `error`。成功读取必须只有一个完成步骤。只有会话显式声明 `preserve_session_on_rejection:` 关键字时才传入该选项。
+自定义会话实现 `connected?` 和 `send_commands([command])`。回执提供 `output`、布尔 `success?`、数组 `steps`、成功正文 `value!` 及失败时的 `error`。成功读取必须只有一个完成步骤。只有会话显式声明 `preserve_session_on_rejection:` 关键字时才传入该选项。
 
 单个 reader 顺序使用；跨设备并发分别创建 reader。连接、关闭、凭据和批准命令选择由宿主负责，Reader 不判断任意命令是否只读。普通执行/回执异常转为安全诊断，取消信号继续传播。
 
 详细厂商语义、历史验证记录和 Motor 专用集成说明保留在[架构参考](docs/architecture-zh.md)。其中宿主集成代码需要 Motor，不属于独立 gem API。适配层位于 [Motor 仓库](https://github.com/gatework/motor/tree/main/backend/lib) 的 `backend/lib/baseline`、`backend/lib/vxlan` 和 `backend/lib/wireless`。
+
+原生 `Net::Connector::Base` 会话通过 `execute_operation` 自动适配，不连接、不提权。只去除已匹配的提示符和首行命令回显；连接器因拒绝命令而关闭时，后续读取跳过，不自动重连。自定义会话仍可实现 `send_commands` 协议。
 
 ## 开发与测试
 
@@ -104,5 +106,3 @@ CI 在 Linux、macOS 上执行测试、lint、示例、构建和隔离安装。`
 ## 许可证
 
 MIT，见 [LICENSE](LICENSE)。
-
-原生 `Net::Connector::Base` 会话通过 `execute_operation` 自动适配，不连接、不提权。只去除已匹配的提示符和首行命令回显；连接器因拒绝命令而关闭时，后续读取跳过，不自动重连。自定义会话仍可实现 `send_commands` 协议。
