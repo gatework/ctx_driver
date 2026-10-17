@@ -17,9 +17,13 @@ module CtxDriver
 
     # 识别传输异常，不要求特定连接器实现。
     def self.connection_error?(error, owner)
-      (defined?(Net::Connector::Error) && error.is_a?(Net::Connector::Error)) ||
-        (owner.class.const_defined?(:Error) && error.is_a?(owner.class.const_get(:Error))) ||
-        error.is_a?(IOError)
+      return true if error.is_a?(IOError) || (defined?(Net::Connector::Error) && error.is_a?(Net::Connector::Error))
+      return false unless owner.class.const_defined?(:Error)
+
+      error_type = owner.class.const_get(:Error)
+      return false unless error_type.is_a?(Class) && error_type <= StandardError
+
+      error.is_a?(error_type)
     end
 
     # 已加载 net-connector 时复用其稳定诊断词表，否则使用调用方的回退代码。

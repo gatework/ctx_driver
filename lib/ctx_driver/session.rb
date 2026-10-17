@@ -2,7 +2,7 @@
 
 module CtxDriver
   # 适配已加载的 net-connector；不连接、不提权，也不恢复已关闭的借用会话。
-  class NetConnectorSession
+  class Session
     # 先交出原始回执，Reader 建立证据后才按需解码正文。
     Response = Data.define(:result) do
       def output = result.output
@@ -12,10 +12,11 @@ module CtxDriver
 
       # 只移除匹配的首行命令回显；保留正文缩进及后续相同行。
       def value!
-        result.value!
+        # 成功路径无需再次拼接全部输出；失败仍交由连接器保留异常契约。
+        result.value! unless result.success?
         step = result.steps.fetch(0)
         body = Net::Connector::TerminalText.render(step.output.delete_suffix(step.prompt.to_s))
-        first = body.lines.first
+        first = body.each_line("\n").first
         first && first.strip == step.command.text ? body.delete_prefix(first) : body
       end
     end

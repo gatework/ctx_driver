@@ -9,6 +9,22 @@ module CtxDriver
 
     # 冻结单条命令回执及其正文、时间、证据和失败元数据。
     def initialize(command:, body: nil, started_at:, completed_at:, evidence: [], failure: nil, skipped: false)
+      unless command.is_a?(String) && !command.strip.empty? && !/[\x00-\x1f\x7f]/.match?(command)
+        raise ArgumentError, "One command without control characters is required"
+      end
+      raise ArgumentError, "Capture body must be text or nil" unless body.nil? || body.is_a?(String)
+      unless started_at.is_a?(Time) && completed_at.is_a?(Time)
+        raise ArgumentError, "Capture timestamps must be Time values"
+      end
+      unless evidence.is_a?(Array) && evidence.all? { |entry| entry.is_a?(Hash) }
+        raise ArgumentError, "Capture evidence must be hashes"
+      end
+      raise ArgumentError, "Capture failure must be a hash or nil" unless failure.nil? || failure.is_a?(Hash)
+      raise ArgumentError, "Skipped must be boolean" unless [ true, false ].include?(skipped)
+      raise ArgumentError, "Successful captures require a body" if failure.nil? && body.nil?
+      raise ArgumentError, "Failed captures cannot contain a body" if failure && !body.nil?
+      raise ArgumentError, "Skipped captures require failure without evidence" if skipped && (failure.nil? || evidence.any?)
+
       @command = command.dup.freeze
       @body = body&.dup&.freeze
       @started_at, @completed_at = started_at.dup.freeze, completed_at.dup.freeze

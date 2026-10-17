@@ -76,13 +76,21 @@ puts "SHA-256: #{capture.evidence.first[:sha256]}"
 
 自定义会话实现 `connected?` 和 `send_commands([command])`。回执提供 `output`、布尔 `success?`、数组 `steps`、成功正文 `value!` 及失败时的 `error`。成功读取必须只有一个完成步骤。只有会话显式声明 `preserve_session_on_rejection:` 关键字时才传入该选项。
 
-单个 reader 顺序使用；跨设备并发分别创建 reader。连接、关闭、凭据和批准命令选择由宿主负责，Reader 不判断任意命令是否只读。普通执行/回执异常转为安全诊断，取消信号继续传播。
+单个 reader 顺序使用；跨设备并发分别创建 reader。连接、关闭、凭据和批准命令选择由宿主负责，Reader 不判断任意命令是否只读。普通执行/回执异常转为安全诊断，取消信号继续传播。执行或响应处理被中断后，当前 Reader 记录 `command_aborted`，后续查询跳过；不会凭 `connected?` 仍为 true 就复用同步状态未知的会话，也不会替宿主关闭连接。
+
+时钟必须可调用且返回 Time，时间在取得时立即复制。正文在检查后续会话状态之前复制。`Capture` 校验字段与状态：成功必须有字符串正文（允许空串），失败没有正文，跳过必须有失败原因且没有执行证据。墙上时钟可能回拨，时间字段不用于推断单调耗时。
 
 详细厂商语义、历史验证记录和 Motor 专用集成说明保留在[架构参考](docs/architecture-zh.md)。其中宿主集成代码需要 Motor，不属于独立 gem API。适配层位于 [Motor 仓库](https://github.com/gatework/motor/tree/main/backend/lib) 的 `backend/lib/baseline`、`backend/lib/vxlan` 和 `backend/lib/wireless`。
 
 原生 `Net::Connector::Base` 会话通过 `execute_operation` 自动适配，不连接、不提权。只去除已匹配的提示符和首行命令回显；连接器因拒绝命令而关闭时，后续读取跳过，不自动重连。自定义会话仍可实现 `send_commands` 协议。
 
+## 领域术语
+
+命令回执属于一次执行，`Capture` 保留处理后的正文和安全证据元数据。命令失败与会话失败具有不同生命周期：独立命令失败后会话仍可能可用，`Reader#failure` 则保留阻止后续查询的首个原因。`Capture#success?` 表示执行结果，不表示解析完整性或设备健康。
+
 ## 开发与测试
+
+共享类按实际职责命名，平台信息放在命名空间中。直接对应设备命令的解析器保留文件名和类名。
 
 ```sh
 bundle install
@@ -91,7 +99,9 @@ bundle exec ruby examples/offline.rb
 bundle exec rake build
 ```
 
-`bundle exec rake` 执行 RSpec、RuboCop 及离线示例。测试放在 `spec/`，沿用项目 RSpec 约定；样例采用合成或脱敏证据。新增解析格式时补充成功、不完整、不支持及非法输入回归。离线测试不代表所有设备版本均通过实机验证。
+`bundle exec rake` 执行 RSpec、RuboCop 及离线示例。测试放在 `spec/`，沿用项目 RSpec 约定；样例采用合成或脱敏证据。新增会话适配时补充成功、拒绝、断链、取消、非法回执及证据保留回归。离线测试不代表所有设备版本均通过实机验证。
+
+`bundle exec ruby -Ilib benchmark/body.rb` 测量合成回显的正文解码时间及对象分配，并校验正文内容；不代表设备网络吞吐。
 
 使用声明的最低 Ruby 版本检查兼容性。方法用途统一使用简明中文注释；复杂实现还需说明业务规则、实现思路及关键分支。保持公开返回值与错误契约。真实回显和凭据不可进入示例、fixture、日志或发布包。
 

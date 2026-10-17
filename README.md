@@ -80,7 +80,17 @@ Use each reader sequentially; create separate readers for concurrent devices. Th
 
 Detailed vendor behavior, historical validation notes, and Motor-only integration are preserved in [the architecture reference](docs/architecture-zh.md). Host integration examples in that reference require Motor; they are not standalone gem APIs. Motor adapters live under `backend/lib/baseline`, `backend/lib/vxlan`, and `backend/lib/wireless` in the [Motor repository](https://github.com/gatework/motor/tree/main/backend/lib).
 
+## Domain vocabulary
+
+A command receipt belongs to one execution; a `Capture` holds its processed body and safe evidence metadata. Command failure and session failure have different lifetimes: an independent command may fail while the session remains usable, whereas `Reader#failure` retains the first cause that prevents further queries. `Capture#success?` describes execution, not parsing completeness or device health.
+
+Cancellation during execution or response processing propagates and marks the reader with `command_aborted`. Later reads are skipped even if the borrowed session still reports connected; the host retains responsibility for closing or replacing it.
+
+The clock must be callable and return `Time`. Times and response bodies are copied before later callbacks can mutate them. Successful captures require a string body (including an empty string); failed captures have no body, and skipped captures require a failure without execution evidence. Wall-clock timestamps can move backwards and are not elapsed-time measurements.
+
 ## Development and tests
+
+Name shared classes by their responsibility and use the namespace for platform context. Preserve filenames and class names that directly match device commands.
 
 ```sh
 bundle install
@@ -92,6 +102,8 @@ bundle exec rake build
 `bundle exec rake` runs RSpec, RuboCop, and the offline examples. Tests live in `spec/`, following the existing project's RSpec convention; fixtures use synthetic or sanitized evidence. Add regression cases for successful, incomplete, unsupported, and malformed inputs when extending a parser. Offline tests do not certify all device versions or replace live integration checks.
 
 Use the declared minimum Ruby version for compatibility checks. Document source methods and non-obvious business logic in concise Chinese, preserve public return/error contracts, and never add raw device captures or credentials to examples, fixtures, logs, or release archives.
+
+Run `bundle exec ruby -Ilib benchmark/body.rb` to measure body decoding and allocations against synthetic output, with semantic checks. This does not measure device network throughput.
 
 ## Release
 

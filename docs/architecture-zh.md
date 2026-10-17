@@ -38,7 +38,11 @@ capture.evidence # command / sha256 / bytes / observed_at
 字段 `started_at/completed_at` 为采集阶段时间；证据的 `observed_at` 为实际收到响应的时间。
 命令失败与领域健康状态分开，Reader 不产生 pass/fail 或完整库存判断。
 
-`StandardError` 在单命令执行、响应验证和状态查询边界转换为安全诊断；取消信号继续抛出。
+`StandardError` 在单命令执行、响应验证和状态查询边界转换为安全诊断；取消信号继续抛出。执行或响应处理未能完成回执时，ensure 保留原有失败或记录 `command_aborted`，包括不进入 rescue 的 Thread.kill。此 Reader 后续只返回 skipped，不关闭借用会话、不重放命令。
+
+开始时间在执行回调之前保存副本，正文在后续状态回调之前保存副本。注入时钟必须可调用并返回 Time；时间允许因墙上时钟校准而回拨。`Capture` 拒绝类型错误以及成功/失败/跳过状态与正文或证据矛盾的回执。
+
+原生适配器只读取渲染后正文的首行来判断回显，不构造全部行数组；成功路径不再调用连接器 `value!` 重复拼接输出，失败仍由连接器原样抛出错误。`benchmark/body.rb` 使用合成回显验证内容、耗时和分配量，不提供真实设备网络性能结论。
 解析异常由领域 Collector 在本条命令或本次 AP 子任务内隔离。
 调用方须顺序使用同一个 Reader；跨设备并发各自建立 Reader。
 

@@ -4,7 +4,7 @@ require "digest"
 require "time"
 require_relative "capture"
 require_relative "failure"
-require_relative "net_connector_session"
+require_relative "session"
 
 module CtxDriver
   # 借用已打开会话逐条独立查询；连接归属与领域判断由外部负责。
@@ -12,14 +12,16 @@ module CtxDriver
     # 借用已打开会话，并初始化首个失败的跟踪状态。
     def initialize(session:, clock: -> { Time.now.utc })
       if defined?(Net::Connector::Base) && session.is_a?(Net::Connector::Base)
-        session = NetConnectorSession.new(session)
+        session = Session.new(session)
       end
       unless session.respond_to?(:send_commands)
         raise ArgumentError, "Session must implement #send_commands for the command driver protocol"
       end
+      raise ArgumentError, "Session must implement #connected?" unless session.respond_to?(:connected?)
+      raise ArgumentError, "Clock must be callable" unless clock.respond_to?(:call)
 
       @session, @clock = session, clock
-      @unavailable = nil
+      @session_failure = nil
     end
 
     # 执行一条经过校验的查询，保留独立结果或失败。
@@ -28,67 +30,83 @@ module CtxDriver
         raise ArgumentError, "One command without control characters is required"
       end
       command = command.dup.freeze
-      started = @clock.call
+      started_at = current_time
       if failure
-        return Capture.new(command: command, started_at: started, completed_at: @clock.call,
-          failure: @unavailable, skipped: true)
+        return Capture.new(command: command, started_at: started_at, completed_at: current_time,
+          failure: @session_failure, skipped: true)
       end
 
-      acquire(command, started)
+      capture_command(command, started_at)
     end
 
     # 不发送命令即可检查会话可用性，并保留首次失败原因。
     def failure
-      @unavailable ||= session_failure
+      @session_failure ||= detect_session_failure
     end
 
     private
 
+    # 立即保存时钟快照，避免后续用户回调改变已记录的时区或时间。
+    def current_time
+      time = @clock.call
+      raise TypeError, "Clock must return a Time" unless time.is_a?(Time)
+
+      time.dup.freeze
+    end
+
     # 分离执行与回执校验；后续校验失败时仍保留已取得的证据。
-    def acquire(command, started)
-      stage, evidence, failure, body = :execute, [], nil, nil
+    def capture_command(command, started_at)
+      stage, evidence, command_failure, body = :execute, [], nil, nil
+      capture_completed = false
       begin
-        result = if preserves_rejection?
+        receipt = if supports_session_preservation?
           @session.send_commands([ command ], preserve_session_on_rejection: true)
         else
           @session.send_commands([ command ])
         end
         stage = :response
-        output = result.output
+        output = receipt.output
         raise TypeError, "Command output must be text" unless output.is_a?(String)
 
         evidence = [ { command: command, sha256: Digest::SHA256.hexdigest(output), bytes: output.bytesize,
-          observed_at: @clock.call.getutc.iso8601(6) } ]
-        success = result.success?
-        unless [ true, false ].include?(success) && result.steps.is_a?(Array) && (!success || result.steps.one?)
+          observed_at: current_time.getutc.iso8601(6) } ]
+        success = receipt.success?
+        unless [ true, false ].include?(success) && receipt.steps.is_a?(Array) && (!success || receipt.steps.one?)
           raise TypeError, "One query must return one completed command"
         end
         if success
-          body = result.value!
+          body = receipt.value!
           raise TypeError, "Command body must be text" unless body.is_a?(String)
+
+          body = body.dup.freeze
         else
-          failure = Failure.details(result.error, fallback: :command_failed, stage: :execute)
+          command_failure = Failure.details(receipt.error, fallback: :command_failed, stage: :execute)
         end
       rescue StandardError => error
         fallback = stage == :execute ? :command_execution_failed : :invalid_command_result
-        failure = Failure.details(error, fallback: fallback, stage: stage)
+        command_failure = Failure.details(error, fallback: fallback, stage: stage)
       end
-      state_failure = session_failure
+      state_failure = detect_session_failure
       # 单命令失败但会话仍可用时继续独立查询；断链或状态不明才阻止后续提交。
-      @unavailable = failure || state_failure if state_failure
-      Capture.new(command: command, body: failure ? nil : body, started_at: started, completed_at: @clock.call,
-        evidence: evidence, failure: failure)
+      @session_failure = command_failure || state_failure if state_failure
+      capture = Capture.new(command: command, body: command_failure ? nil : body, started_at: started_at, completed_at: current_time,
+        evidence: evidence, failure: command_failure)
+      capture_completed = true
+      capture
+    ensure
+      # Interrupt 与 Thread.kill 不经过 StandardError；未完成回执时禁止继续使用未知同步状态。
+      @session_failure ||= command_failure || { code: :command_aborted, stage: stage || :execute }.freeze unless capture_completed
     end
 
     # 仅在明确支持时复用命令拒绝后的会话；未知提示符仍由连接器关闭处理。
-    def preserves_rejection?
+    def supports_session_preservation?
       @session.method(:send_commands).parameters.any? do |kind, name|
         %i[key keyreq].include?(kind) && name == :preserve_session_on_rejection
       end
     end
 
     # 连接状态不确定时视为不可用，后续跳过的查询保留首次失败原因。
-    def session_failure
+    def detect_session_failure
       state = @session.connected?
       raise TypeError, "Connection state must be boolean" unless [ true, false ].include?(state)
 

@@ -2,6 +2,20 @@
 
 Changes to the public contract are recorded here. Versions follow Semantic Versioning.
 
+## 0.2.0 (2026-10-17)
+
+- Require ctx_parser 0.2.x for the renamed public contracts.
+
+- Mark an aborted command unusable for the current reader while propagating cancellation, including Thread termination, without closing or replaying the borrowed session.
+- Snapshot start times and response bodies before subsequent caller callbacks can mutate them.
+- Validate session and clock protocols, capture field types, and success/failure/skipped consistency.
+- Ignore non-exception connector `Error` constants when classifying failures.
+- Decode native responses without redundant output concatenation or a full array of body lines.
+
+- Name the borrowed-session adapter `CtxDriver::Session` and load it from `ctx_driver/session`.
+
+- Separate command receipt, command failure, and retained session failure terminology without changing execution behavior.
+
 ## 0.1.0 (2026-10-16)
 
 ### Added

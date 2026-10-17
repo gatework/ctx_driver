@@ -133,6 +133,90 @@ RSpec.describe CtxDriver::Reader do
     expect { reader.read("show test") }.to raise_error(Interrupt)
   end
 
+  it "stops reuse after cancellation during execution or response decoding" do
+    [ :execute, :response ].each do |stage|
+      adapter = Object.new
+      adapter.define_singleton_method(:connected?) { true }
+      result = receipt
+      adapter.define_singleton_method(:send_commands) do |_commands|
+        raise Interrupt if stage == :execute
+        result
+      end
+      allow(receipt).to receive(:value!).and_raise(Interrupt) if stage == :response
+      driver = described_class.new(session: adapter)
+
+      expect { driver.read("show first") }.to raise_error(Interrupt)
+      expect(adapter).not_to receive(:send_commands)
+      skipped = driver.read("show next")
+      expect(skipped).to be_skipped
+      expect(skipped.failure).to eq(code: :command_aborted, stage: stage)
+      expect(skipped.evidence).to be_empty
+    end
+  end
+
+  it "marks an abandoned query unusable even when Thread kill bypasses rescue" do
+    entered, release = Queue.new, Queue.new
+    adapter = Object.new
+    adapter.define_singleton_method(:connected?) { true }
+    adapter.define_singleton_method(:send_commands) do |_commands|
+      entered << :executing
+      release.pop
+    end
+    driver = described_class.new(session: adapter)
+    worker = Thread.new { driver.read("show first") }
+    expect(entered.pop(timeout: 2)).to eq(:executing)
+    worker.kill
+    expect(worker.join(2)).to equal(worker)
+    expect(adapter).not_to receive(:send_commands)
+
+    skipped = driver.read("show next")
+    expect(skipped).to be_skipped
+    expect(skipped.failure).to eq(code: :command_aborted, stage: :execute)
+  ensure
+    worker&.kill
+    worker&.join(2)
+  end
+
+  it "snapshots the body before the next session callback can reuse its buffer" do
+    expect(session).to receive(:send_commands).and_return(receipt)
+    checks = 0
+    allow(session).to receive(:connected?) do
+      checks += 1
+      body.replace("next response") if checks > 1
+      true
+    end
+
+    capture = reader.read("show test")
+    expect(capture.body).to eq("private command body")
+    expect(body).to eq("next response")
+    expect(body).not_to be_frozen
+  end
+
+  it "snapshots the start timestamp before executing caller code" do
+    shared_time = Time.new(2026, 10, 16, 12, 0, 0, "+08:00")
+    expect(session).to receive(:send_commands) do
+      shared_time.utc
+      receipt
+    end
+    capture = described_class.new(session: session, clock: -> { shared_time }).read("show test")
+
+    expect(capture.started_at.utc_offset).to eq(28_800)
+    expect(capture.completed_at.utc_offset).to eq(0)
+    expect(shared_time).not_to be_frozen
+  end
+
+  it "rejects incomplete session and clock protocols without querying the device" do
+    missing_state = Object.new
+    missing_state.define_singleton_method(:send_commands) { |_| raise "must not execute" }
+    expect { described_class.new(session: missing_state) }.to raise_error(ArgumentError, /connected/)
+    adapter = Object.new
+    adapter.define_singleton_method(:connected?) { raise "must not query state" }
+    adapter.define_singleton_method(:send_commands) { |_| raise "must not execute" }
+    expect { described_class.new(session: adapter, clock: nil) }.to raise_error(ArgumentError, /callable/)
+    driver = described_class.new(session: adapter, clock: -> { "invalid time" })
+    expect { driver.read("show test") }.to raise_error(TypeError, "Clock must return a Time")
+  end
+
   it "loads and captures without Rails, net-connector or business domains" do
     library = File.expand_path("../lib", __dir__)
     script = <<~RUBY
@@ -154,6 +238,16 @@ RSpec.describe CtxDriver::Reader do
 end
 
 RSpec.describe CtxDriver::Failure do
+  it "does not replace the original failure when a connector declares a non-exception Error constant" do
+    [ nil, "error", Object ].each do |value|
+      type = Class.new
+      type.const_set(:Error, value)
+      connector = type.new
+      expect(described_class.connection_error?(IOError.new, connector)).to be(true)
+      expect(described_class.connection_error?(ArgumentError.new, connector)).to be(false)
+    end
+  end
+
   it "recognizes an inherited connector error without swallowing unrelated programming errors" do
     parent = Class.new
     parent.const_set(:Error, Class.new(StandardError))
