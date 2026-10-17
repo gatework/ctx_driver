@@ -21,7 +21,7 @@ gem "ctx_driver"
 
 Then run `bundle install`, or install directly with `gem install ctx_driver`. The require path is `ctx_driver` and the public namespace is `CtxDriver`; package names and Ruby namespaces are intentionally separate.
 
-Internal runtime dependencies: [`ctx_parser`](https://github.com/gatework/ctx_parser). The gemspec declares runtime dependencies without version constraints. Applications should commit their own `Gemfile.lock` to make deployments reproducible. No Rails boot or sibling checkout paths are required.
+Internal runtime dependencies: [`ctx_parser`](https://github.com/gatework/ctx_parser). Shared Gatework dependencies require the compatible 0.2.x API. Applications should commit their own `Gemfile.lock` to make deployments reproducible. No Rails boot or sibling checkout paths are required.
 
 Release artifacts and checksums are available from [GitHub Releases](https://github.com/gatework/ctx_driver/releases). Check [RubyGems](https://rubygems.org/gems/ctx_driver) for published versions.
 

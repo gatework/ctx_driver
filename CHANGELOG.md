@@ -2,6 +2,10 @@
 
 Changes to the public contract are recorded here. Versions follow Semantic Versioning.
 
+## 0.2.1 (2026-10-17)
+
+- Correct installation documentation to state the required ctx_parser 0.2.x API.
+
 ## 0.2.0 (2026-10-17)
 
 - Require ctx_parser 0.2.x for the renamed public contracts.
