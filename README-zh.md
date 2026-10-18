@@ -72,7 +72,7 @@ puts "SHA-256: #{capture.evidence.first[:sha256]}"
 
 ## 公开契约与限制
 
-`Reader.new(session:, clock:).read(command)` 返回 `Capture`。通过 `success?`、`skipped?`、`failure`、`evidence` 检查结果；正文仅显式通过 `body` 读取，`to_h`、`as_json`、`inspect` 不包含正文。
+`Reader.new(session:, clock:).read(command)` 返回 `Capture`。通过 `success?`、`skipped?`、`failure`、`evidence` 检查结果；正文仅显式通过 `body` 读取，`to_h`、`as_json`、`inspect` 不包含正文。`Reader`、借用会话适配器 `Session` 及其回执的 `inspect`/`PP` 不展开调用方对象，也不查询连接状态；回执的字符串插值同样安全。原始输出与解码正文仍可通过回执的显式 API 访问。
 
 自定义会话实现 `connected?` 和 `send_commands([command])`。回执提供 `output`、布尔 `success?`、数组 `steps`、成功正文 `value!` 及失败时的 `error`。成功读取必须只有一个完成步骤。只有会话显式声明 `preserve_session_on_rejection:` 关键字时才传入该选项。
 
@@ -80,7 +80,7 @@ net-connector 仍为可选依赖，使用适配器的宿主需自行声明 `gem 
 
 单个 reader 顺序使用；跨设备并发分别创建 reader。连接、关闭、凭据和批准命令选择由宿主负责，Reader 不判断任意命令是否只读。普通执行/回执异常转为安全诊断，取消信号继续传播。执行或响应处理被中断后，当前 Reader 记录 `command_aborted`，后续查询跳过；不会凭 `connected?` 仍为 true 就复用同步状态未知的会话，也不会替宿主关闭连接。
 
-时钟必须可调用且返回 Time，可变时间在取得时保存副本，已冻结值可以安全共享。正文和来源摘要在观察时钟及会话状态回调之前固定，避免回调复用缓冲区后混入另一条响应。`Capture` 校验字段与状态：成功必须有字符串正文（允许空串），失败没有正文，跳过必须有失败原因且没有执行证据。墙上时钟可能回拨，时间字段不用于推断单调耗时。
+时钟必须可调用且返回 Time，可变时间在取得时保存副本，已冻结的 Time 直接复用。正文和来源摘要在观察时钟及会话状态回调之前固定，避免回调复用缓冲区后混入另一条响应。`Capture` 校验字段与状态：成功必须有字符串正文（允许空串），失败没有正文，跳过必须有失败原因且没有执行证据。墙上时钟可能回拨，时间字段不用于推断单调耗时。
 
 详细厂商语义、历史验证记录和 Motor 专用集成说明保留在[架构参考](docs/architecture-zh.md)。其中宿主集成代码需要 Motor，不属于独立 gem API。适配层位于 [Motor 仓库](https://github.com/gatework/motor/tree/main/backend/lib) 的 `backend/lib/baseline`、`backend/lib/vxlan` 和 `backend/lib/wireless`。
 

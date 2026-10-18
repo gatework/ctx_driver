@@ -2,6 +2,11 @@
 
 Changes to the public contract are recorded here. Versions follow Semantic Versioning.
 
+## 0.2.3 (2026-10-18)
+
+- Hide borrowed session, clock and response internals from inspection and pretty printing, including response string interpolation, without changing explicit output access.
+- Reuse frozen clock values directly while retaining defensive snapshots for mutable times.
+
 ## 0.2.2 (2026-10-18)
 
 - Adapt optional native sessions to net-connector 0.13.0 and newer, including command results, terminal decoding and safe error codes.

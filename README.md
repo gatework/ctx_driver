@@ -72,7 +72,7 @@ puts "SHA-256: #{capture.evidence.first[:sha256]}"
 
 ## Public contract and limits
 
-`Reader.new(session:, clock:).read(command)` returns a `Capture`. Inspect `success?`, `skipped?`, `failure`, and `evidence`; access the body explicitly through `body`. `to_h`, `as_json`, and `inspect` omit the body.
+`Reader.new(session:, clock:).read(command)` returns a `Capture`. Inspect `success?`, `skipped?`, `failure`, and `evidence`; access the body explicitly through `body`. `to_h`, `as_json`, and `inspect` omit the body. `Reader`, the borrowed `Session` adapter, and its response use safe `inspect`/`PP` displays that do not traverse caller-owned objects or consult connection state. Response string interpolation is also safe; raw output and decoded bodies remain available through explicit response APIs.
 
 A custom session implements `connected?` and `send_commands([command])`. Already loaded `Net::Connector::Base` sessions from net-connector **0.13.0 or newer** are adapted automatically through `execute_operation`, without connecting or requesting privilege. The adapter removes the matched prompt and first-line command echo, and keeps raw bytes only in the explicit capture evidence boundary. A native connector that closes on command rejection stays closed; later reads are skipped. A response exposes `output`, a boolean `success?`, an array `steps`, `value!` for a successful body, and `error` on failure. A successful read must contain exactly one completed step. The optional `preserve_session_on_rejection:` keyword is supplied only when the session explicitly declares it.
 
@@ -88,7 +88,7 @@ A command receipt belongs to one execution; a `Capture` holds its processed body
 
 Cancellation during execution or response processing propagates and marks the reader with `command_aborted`. Later reads are skipped even if the borrowed session still reports connected; the host retains responsibility for closing or replacing it.
 
-The clock must be callable and return `Time`. Mutable times and response bodies are copied before later callbacks can mutate them; immutable values may be shared. The observation clock runs after the source fingerprint and body snapshot have been fixed, so its callback cannot mix two responses. Successful captures require a string body (including an empty string); failed captures have no body, and skipped captures require a failure without execution evidence. Wall-clock timestamps can move backwards and are not elapsed-time measurements.
+The clock must be callable and return `Time`. Mutable times and response bodies are copied before later callbacks can mutate them; frozen `Time` values are reused directly, and immutable bodies may be shared. The observation clock runs after the source fingerprint and body snapshot have been fixed, so its callback cannot mix two responses. Successful captures require a string body (including an empty string); failed captures have no body, and skipped captures require a failure without execution evidence. Wall-clock timestamps can move backwards and are not elapsed-time measurements.
 
 ## Development and tests
 

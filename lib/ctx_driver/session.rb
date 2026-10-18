@@ -7,6 +7,15 @@ module CtxDriver
   class Session
     # 先交出原始回执，Reader 建立证据后才按需解码正文。
     Response = Data.define(:result) do
+      # 不依赖原始回执自身的脱敏实现，默认检查不展开来源结果。
+      def inspect = "#<#{self.class.name}>"
+
+      # Data 的默认 to_s 保留原始成员检查实现，日志插值也须脱敏。
+      def to_s = inspect
+
+      # Data 的 PP 默认按成员展开，显式限制为安全表示。
+      def pretty_print(printer) = printer.text(inspect)
+
       def output = result.output
       def steps = result.steps
       def success? = result.success?
@@ -28,6 +37,9 @@ module CtxDriver
     def initialize(session)
       @session = session
     end
+
+    # 不展开调用方拥有的连接器，也不查询连接状态。
+    def inspect = "#<#{self.class.name}>"
 
     # 复用连接器的真实状态，避免失败后隐式重连。
     def connected? = @session.connected?

@@ -2,6 +2,7 @@
 
 require_relative "spec_helper"
 require "json"
+require "pp"
 require "open3"
 require "rbconfig"
 require "bundler"
@@ -14,6 +15,32 @@ RSpec.describe CtxDriver::Reader do
   let(:body) { +"private command body" }
   let(:output) { +"show test\n#{body}\ndevice#" }
   let(:receipt) { double(:receipt, output: output, success?: true, steps: [ Object.new ], value!: body) }
+
+  it "hides borrowed session and clock internals without querying either during inspection", :aggregate_failures do
+    borrowed = Object.new
+    borrowed.instance_variable_set(:@password, "PASSWORD_SENTINEL")
+    borrowed.define_singleton_method(:connected?) { raise "must not query" }
+    borrowed.define_singleton_method(:send_commands) { |_| raise "must not execute" }
+    clock = Object.new
+    clock.instance_variable_set(:@secret, "CLOCK_SENTINEL")
+    clock.define_singleton_method(:call) { raise "must not call" }
+    driver = described_class.new(session: borrowed, clock: clock)
+
+    [ driver.inspect, PP.pp(driver, +"") ].each do |display|
+      expect(display).to include("CtxDriver::Reader")
+      expect(display).not_to include("PASSWORD_SENTINEL", "CLOCK_SENTINEL", "@session", "@clock")
+    end
+  end
+
+  it "shares frozen clock values through capture timestamps without copying" do
+    expect(session).to receive(:send_commands).and_return(receipt)
+    capture = reader.read("show test")
+
+    expect(capture.started_at).to equal(time)
+    expect(capture.completed_at).to equal(time)
+    expect(capture.evidence.first[:observed_at]).to eq("2026-10-16T04:00:00.000000Z")
+    expect(time.utc_offset).to eq(28_800)
+  end
 
   it "rejects unsupported connector protocols before any query can be classified as a device failure" do
     legacy_session = double(:legacy_session, connected?: true)

@@ -3,6 +3,7 @@
 require_relative "spec_helper"
 require "net/connector"
 require "ctx_driver"
+require "pp"
 
 RSpec.describe CtxDriver::Session do
   let(:session) { Net::Connector.build(:cisco_ios, host: "192.0.2.1", username: "test-user") }
@@ -18,6 +19,37 @@ RSpec.describe CtxDriver::Session do
     allow(session).to receive(:current_prompt).and_return("router#")
     expect(session).not_to receive(:connect)
     expect(session).not_to receive(:close)
+  end
+
+  it "hides borrowed connector internals without consulting its state during inspection", :aggregate_failures do
+    borrowed = Object.new
+    borrowed.instance_variable_set(:@password, "PASSWORD_SENTINEL")
+    borrowed.define_singleton_method(:connected?) { raise "must not query" }
+    adapter = described_class.new(borrowed)
+
+    [ adapter.inspect, PP.pp(adapter, +"") ].each do |display|
+      expect(display).to include("CtxDriver::Session")
+      expect(display).not_to include("PASSWORD_SENTINEL", "@session")
+    end
+  end
+
+  it "hides raw response internals during inspection while keeping explicit output access", :aggregate_failures do
+    raw = "show test\r\nRAW_SENTINEL\r\nrouter#"
+    steps = result_for(raw).steps
+    result = Object.new
+    result.instance_variable_set(:@raw, raw)
+    result.define_singleton_method(:output) { raw }
+    result.define_singleton_method(:steps) { steps }
+    result.define_singleton_method(:success?) { true }
+    allow(session).to receive(:execute_operation).and_return(result)
+    response = described_class.new(session).send_commands([ "show test" ])
+
+    [ response.inspect, response.to_s, PP.pp(response, +"") ].each do |display|
+      expect(display).to include("CtxDriver::Session::Response")
+      expect(display).not_to include("RAW_SENTINEL", "router#", "@raw", "result=")
+    end
+    expect(response.output).to eq(raw)
+    expect(response.value!).to eq("RAW_SENTINEL\n")
   end
 
   it "removes the matching echo and prompt while retaining indentation and repeated body lines" do

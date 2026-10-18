@@ -41,6 +41,9 @@ module CtxDriver
       @session_failure ||= detect_session_failure
     end
 
+    # 仅显示边界类型，避免遍历借用会话、时钟或触发外部状态查询。
+    def inspect = "#<#{self.class.name}>"
+
     private
 
     # 立即保存时钟快照，避免后续用户回调改变已记录的时区或时间。
@@ -48,7 +51,7 @@ module CtxDriver
       time = @clock.call
       raise TypeError, "Clock must return a Time" unless time.is_a?(Time)
 
-      time.dup.freeze
+      time.frozen? ? time : time.dup.freeze
     end
 
     # 分离执行与回执校验；后续校验失败时仍保留已取得的证据。
