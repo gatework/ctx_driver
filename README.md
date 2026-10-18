@@ -74,7 +74,9 @@ puts "SHA-256: #{capture.evidence.first[:sha256]}"
 
 `Reader.new(session:, clock:).read(command)` returns a `Capture`. Inspect `success?`, `skipped?`, `failure`, and `evidence`; access the body explicitly through `body`. `to_h`, `as_json`, and `inspect` omit the body.
 
-A custom session implements `connected?` and `send_commands([command])`. Already loaded `Net::Connector::Base` sessions are adapted automatically through `execute_operation`, without connecting or requesting privilege. The adapter removes the matched prompt and first-line command echo, and keeps raw bytes only in the explicit capture evidence boundary. A native connector that closes on command rejection stays closed; later reads are skipped. A response exposes `output`, a boolean `success?`, an array `steps`, `value!` for a successful body, and `error` on failure. A successful read must contain exactly one completed step. The optional `preserve_session_on_rejection:` keyword is supplied only when the session explicitly declares it.
+A custom session implements `connected?` and `send_commands([command])`. Already loaded `Net::Connector::Base` sessions from net-connector **0.13.0 or newer** are adapted automatically through `execute_operation`, without connecting or requesting privilege. The adapter removes the matched prompt and first-line command echo, and keeps raw bytes only in the explicit capture evidence boundary. A native connector that closes on command rejection stays closed; later reads are skipped. A response exposes `output`, a boolean `success?`, an array `steps`, `value!` for a successful body, and `error` on failure. A successful read must contain exactly one completed step. The optional `preserve_session_on_rejection:` keyword is supplied only when the session explicitly declares it.
+
+net-connector remains optional: applications using this adapter must declare `gem "net-connector", ">= 0.13.0"` themselves. `examples/connector.rb` exercises the installed adapter through a local PTY process without opening network connections.
 
 Use each reader sequentially; create separate readers for concurrent devices. The caller owns connection, disconnection, credentials, and approved command selection. Reader does not decide whether arbitrary command text is read-only. Standard execution/response errors become safe diagnostics; cancellation signals propagate.
 
@@ -86,7 +88,7 @@ A command receipt belongs to one execution; a `Capture` holds its processed body
 
 Cancellation during execution or response processing propagates and marks the reader with `command_aborted`. Later reads are skipped even if the borrowed session still reports connected; the host retains responsibility for closing or replacing it.
 
-The clock must be callable and return `Time`. Times and response bodies are copied before later callbacks can mutate them. Successful captures require a string body (including an empty string); failed captures have no body, and skipped captures require a failure without execution evidence. Wall-clock timestamps can move backwards and are not elapsed-time measurements.
+The clock must be callable and return `Time`. Mutable times and response bodies are copied before later callbacks can mutate them; immutable values may be shared. The observation clock runs after the source fingerprint and body snapshot have been fixed, so its callback cannot mix two responses. Successful captures require a string body (including an empty string); failed captures have no body, and skipped captures require a failure without execution evidence. Wall-clock timestamps can move backwards and are not elapsed-time measurements.
 
 ## Development and tests
 
@@ -103,7 +105,7 @@ bundle exec rake build
 
 Use the declared minimum Ruby version for compatibility checks. Document source methods and non-obvious business logic in concise Chinese, preserve public return/error contracts, and never add raw device captures or credentials to examples, fixtures, logs, or release archives.
 
-Run `bundle exec ruby -Ilib benchmark/body.rb` to measure body decoding and allocations against synthetic output, with semantic checks. This does not measure device network throughput.
+Run `bundle exec ruby -Ilib benchmark/body.rb` to measure body decoding, or `bundle exec ruby -Ilib benchmark/reader.rb` for 10,000 sequential captures per trial. Both report allocations and elapsed time against synthetic output, with semantic checks. Compare versions under the same Ruby, input and host; these do not measure device network throughput.
 
 ## Release
 

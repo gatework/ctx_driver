@@ -26,10 +26,7 @@ module CtxDriver
 
     # 执行一条经过校验的查询，保留独立结果或失败。
     def read(command)
-      unless command.is_a?(String) && !command.strip.empty? && !/[\x00-\x1f\x7f]/.match?(command)
-        raise ArgumentError, "One command without control characters is required"
-      end
-      command = command.dup.freeze
+      command = Command.snapshot(command)
       started_at = current_time
       if failure
         return Capture.new(command: command, started_at: started_at, completed_at: current_time,
@@ -68,8 +65,7 @@ module CtxDriver
         output = receipt.output
         raise TypeError, "Command output must be text" unless output.is_a?(String)
 
-        evidence = [ { command: command, sha256: Digest::SHA256.hexdigest(output), bytes: output.bytesize,
-          observed_at: current_time.getutc.iso8601(6) } ]
+        evidence = [ { command: command, sha256: Digest::SHA256.hexdigest(output), bytes: output.bytesize } ]
         success = receipt.success?
         unless [ true, false ].include?(success) && receipt.steps.is_a?(Array) && (!success || receipt.steps.one?)
           raise TypeError, "One query must return one completed command"
@@ -78,13 +74,23 @@ module CtxDriver
           body = receipt.value!
           raise TypeError, "Command body must be text" unless body.is_a?(String)
 
-          body = body.dup.freeze
+          body = body.dup.freeze unless body.frozen?
         else
           command_failure = Failure.details(receipt.error, fallback: :command_failed, stage: :execute)
         end
       rescue StandardError => error
         fallback = stage == :execute ? :command_execution_failed : :invalid_command_result
         command_failure = Failure.details(error, fallback: fallback, stage: stage)
+      end
+      # 外部时钟回调只在正文与摘要固定后调用，不能复用本条响应缓冲区。
+      begin
+        unless evidence.empty?
+          observed_at = current_time.getutc.iso8601(6)
+          evidence = [ evidence.first.merge(observed_at: observed_at) ]
+        end
+      rescue StandardError => error
+        evidence = []
+        command_failure ||= Failure.details(error, fallback: :invalid_command_result, stage: :response)
       end
       state_failure = detect_session_failure
       # 单命令失败但会话仍可用时继续独立查询；断链或状态不明才阻止后续提交。

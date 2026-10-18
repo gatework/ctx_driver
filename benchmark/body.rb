@@ -10,7 +10,7 @@ puts "source=#{CtxDriver::Session.instance_method(:send_commands).source_locatio
 [ 20_000, 100_000 ].each do |lines|
   expected = "  interface Ethernet1/1\n" * lines
   raw = "show test\n#{expected}router#"
-  step = Net::Connector::CommandResult.new(command: Net::Connector::Command.new("show test"), output: raw, prompt: "router#", duration: 0.01)
+  step = Net::Connector::Command::Result.new(command: Net::Connector::Command.new("show test"), output: raw, prompt: "router#", duration: 0.01)
   receipt = Net::Connector::Result.new(steps: [ step ])
   adapter = Object.new
   adapter.define_singleton_method(:connected?) { true }

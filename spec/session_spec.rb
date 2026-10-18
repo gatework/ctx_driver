@@ -8,7 +8,7 @@ RSpec.describe CtxDriver::Session do
   let(:session) { Net::Connector.build(:cisco_ios, host: "192.0.2.1", username: "test-user") }
 
   def result_for(output)
-    step = Net::Connector::CommandResult.new(command: Net::Connector::Command.new("show test"),
+    step = Net::Connector::Command::Result.new(command: Net::Connector::Command.new("show test"),
       output: output, prompt: "router#", duration: 0.01)
     Net::Connector::Result.new(steps: [ step ])
   end
@@ -31,6 +31,19 @@ RSpec.describe CtxDriver::Session do
     expect(capture).to be_success
     expect(capture.body).to eq("  body\nshow test\n")
     expect(capture.evidence.first[:sha256]).to eq(Digest::SHA256.hexdigest(raw))
+  end
+
+  it "removes a padded command echo without changing body indentation" do
+    command = "  show test  "
+    raw = "  show test\r\n  body\r\nrouter#"
+    step = Net::Connector::Command::Result.new(command: Net::Connector::Command.new(command),
+      output: raw, prompt: "router#", duration: 0.01)
+    allow(session).to receive(:execute_operation).and_return(Net::Connector::Result.new(steps: [ step ]))
+    capture = CtxDriver::Reader.new(session: session).read(command)
+
+    expect(capture).to be_success
+    expect(capture.command).to eq(command)
+    expect(capture.body).to eq("  body\n")
   end
 
   it "retains completed source evidence when body decoding fails" do
@@ -59,6 +72,14 @@ RSpec.describe CtxDriver::Session do
     response = described_class.new(session).send_commands([ "show test" ])
 
     expect { response.value! }.to raise_error { |raised| expect(raised).to equal(error) }
+  end
+
+  it "validates exactly one command before consulting the borrowed connector" do
+    expect(session).not_to receive(:current_prompt)
+    expect(session).not_to receive(:execute_operation)
+    [ nil, "show test", [], [ "first", "second" ], [ nil ], [ "show test\nreload" ] ].each do |commands|
+      expect { described_class.new(session).send_commands(commands) }.to raise_error(ArgumentError)
+    end
   end
 
   it "preserves a native timeout receipt and skips later queries after disconnection" do

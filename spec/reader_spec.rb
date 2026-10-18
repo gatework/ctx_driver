@@ -192,6 +192,59 @@ RSpec.describe CtxDriver::Reader do
     expect(body).not_to be_frozen
   end
 
+  it "snapshots the response body before the observation clock can reuse its buffer" do
+    shared = +"original response"
+    result = Data.define(:output, :steps) do
+      def success? = true
+      def value! = output
+    end.new(output: shared, steps: [ 1 ])
+    expect(session).to receive(:send_commands).and_return(result)
+    calls = 0
+    clock = lambda do
+      calls += 1
+      shared.replace("next response") if calls == 2
+      time
+    end
+    capture = described_class.new(session: session, clock: clock).read("show test")
+
+    expect(capture.body).to eq("original response")
+    expect(capture.evidence.first[:sha256]).to eq(Digest::SHA256.hexdigest("original response"))
+    expect(capture.evidence.first[:bytes]).to eq("original response".bytesize)
+    expect(shared).to eq("next response")
+    expect(shared).not_to be_frozen
+  end
+
+  it "keeps invalid observation clocks as response failures without publishing partial evidence" do
+    expect(session).to receive(:send_commands).and_return(receipt)
+    calls = 0
+    clock = lambda do
+      calls += 1
+      calls == 2 ? "invalid time" : time
+    end
+    capture = described_class.new(session: session, clock: clock).read("show test")
+
+    expect(capture.failure).to include(code: :invalid_command_result, stage: :response, error_type: "TypeError")
+    expect(capture.evidence).to be_empty
+    expect(capture.body).to be_nil
+  end
+
+  it "propagates cancellation from the observation clock and prevents reuse" do
+    expect(session).to receive(:send_commands).once.and_return(receipt)
+    calls = 0
+    clock = lambda do
+      calls += 1
+      raise Interrupt if calls == 2
+      time
+    end
+    driver = described_class.new(session: session, clock: clock)
+
+    expect { driver.read("show first") }.to raise_error(Interrupt)
+    skipped = driver.read("show next")
+    expect(skipped).to be_skipped
+    expect(skipped.failure).to eq(code: :command_aborted, stage: :response)
+    expect(skipped.evidence).to be_empty
+  end
+
   it "snapshots the start timestamp before executing caller code" do
     shared_time = Time.new(2026, 10, 16, 12, 0, 0, "+08:00")
     expect(session).to receive(:send_commands) do

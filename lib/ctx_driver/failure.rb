@@ -29,7 +29,7 @@ module CtxDriver
     # 已加载 net-connector 时复用其稳定诊断词表，否则使用调用方的回退代码。
     def self.code(error, fallback)
       value = error.code if error.respond_to?(:code)
-      defined?(Net::Connector::ErrorMetadata) ? Net::Connector::ErrorMetadata.code(value) || fallback : fallback
+      defined?(Net::Connector::Error::Metadata) ? Net::Connector::Error::Metadata.code(value) || fallback : fallback
     rescue StandardError
       fallback
     end

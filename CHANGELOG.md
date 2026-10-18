@@ -2,6 +2,14 @@
 
 Changes to the public contract are recorded here. Versions follow Semantic Versioning.
 
+## 0.2.2 (2026-10-18)
+
+- Adapt optional native sessions to net-connector 0.13.0 and newer, including command results, terminal decoding and safe error codes.
+- Preserve response bodies before observation-clock callbacks can reuse their buffers, while retaining source evidence when decoding fails.
+- Remove padded first-line command echoes without changing body indentation, and validate one-command input before consulting native sessions.
+- Centralize command-text validation and safely share frozen command, body and timestamp values to avoid redundant snapshot allocations.
+- Verify both dependency-free offline loading and the optional adapter through an installed package and a local PTY process.
+
 ## 0.2.1 (2026-10-17)
 
 - Correct installation documentation to state the required ctx_parser 0.2.x API.

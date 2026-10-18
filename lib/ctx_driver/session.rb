@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "command"
+
 module CtxDriver
   # 适配已加载的 net-connector；不连接、不提权，也不恢复已关闭的借用会话。
   class Session
@@ -15,9 +17,9 @@ module CtxDriver
         # 成功路径无需再次拼接全部输出；失败仍交由连接器保留异常契约。
         result.value! unless result.success?
         step = result.steps.fetch(0)
-        body = Net::Connector::TerminalText.render(step.output.delete_suffix(step.prompt.to_s))
+        body = Net::Connector::Terminal::Text.render(step.output.delete_suffix(step.prompt.to_s))
         first = body.each_line("\n").first
-        first && first.strip == step.command.text ? body.delete_prefix(first) : body
+        first && first.strip == step.command.text.strip ? body.delete_prefix(first) : body
       end
     end
     private_constant :Response
@@ -32,13 +34,15 @@ module CtxDriver
 
     # 单命令操作保护响应正文，并绑定当前完整提示符。
     def send_commands(commands)
-      raise ArgumentError, "Expected one query" unless commands.one?
+      raise ArgumentError, "Expected one query" unless commands.is_a?(Array) && commands.one?
 
-      prompt = Net::Connector::TerminalText.render(@session.current_prompt.to_s).strip
+      text = Command.snapshot(commands.first)
+
+      prompt = Net::Connector::Terminal::Text.render(@session.current_prompt.to_s).strip
       raise ArgumentError, "Session prompt is unavailable" if prompt.empty?
 
       pattern = /(?:\A|(?<=[\r\n]))[ \t\x00]*#{Regexp.escape(prompt)}[ \t\x00]*[\r\n]*\z/
-      command = Net::Connector::Command.new(commands.first, prompt: pattern, output_sensitive: true)
+      command = Net::Connector::Command.new(text, prompt: pattern, output_sensitive: true)
       result = @session.execute_operation(Net::Connector::Script.new([ command ]), name: :ctx_driver, privilege: false)
       Response.new(result)
     end
