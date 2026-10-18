@@ -2,6 +2,10 @@
 
 Changes to the public contract are recorded here. Versions follow Semantic Versioning.
 
+## 0.2.4 (2026-10-18)
+
+- Clear Bundler bootstrap variables when verifying packages in an isolated gem installation, including calls made through bundle exec.
+
 ## 0.2.3 (2026-10-18)
 
 - Hide borrowed session, clock and response internals from inspection and pretty printing, including response string interpolation, without changing explicit output access.
