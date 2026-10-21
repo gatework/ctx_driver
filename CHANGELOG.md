@@ -2,6 +2,13 @@
 
 Changes to the public contract are recorded here. Versions follow Semantic Versioning.
 
+## Unreleased
+
+## 0.2.5 (2026-10-21)
+
+- Add repository-specific AGENTS.md guidance for responsibilities, Ruby conventions, evidence boundaries and validation.
+- Reject failed single-query receipts containing multiple completed commands while retaining source evidence.
+
 ## 0.2.4 (2026-10-18)
 
 - Clear Bundler bootstrap variables when verifying packages in an isolated gem installation, including calls made through bundle exec.

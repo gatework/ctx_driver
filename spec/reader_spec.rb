@@ -127,6 +127,17 @@ RSpec.describe CtxDriver::Reader do
     end
   end
 
+  it "rejects a failed receipt containing more than one completed command" do
+    allow(receipt).to receive_messages(success?: false, steps: [ Object.new, Object.new ], error: IOError.new("private"))
+    expect(session).to receive(:send_commands).once.and_return(receipt)
+
+    capture = reader.read("show test")
+
+    expect(capture.failure).to include(code: :invalid_command_result, stage: :response)
+    expect(capture.evidence.first[:sha256]).to eq(Digest::SHA256.hexdigest(output))
+    expect(capture.body).to be_nil
+  end
+
   [ [], [ Object.new, Object.new ], nil ].each do |steps|
     it "rejects a successful receipt with #{steps&.size.inspect} completed steps and retains provenance" do
       allow(receipt).to receive(:steps).and_return(steps)

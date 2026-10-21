@@ -70,7 +70,8 @@ module CtxDriver
 
         evidence = [ { command: command, sha256: Digest::SHA256.hexdigest(output), bytes: output.bytesize } ]
         success = receipt.success?
-        unless [ true, false ].include?(success) && receipt.steps.is_a?(Array) && (!success || receipt.steps.one?)
+        steps = receipt.steps
+        unless [ true, false ].include?(success) && steps.is_a?(Array) && (success ? steps.one? : steps.size <= 1)
           raise TypeError, "One query must return one completed command"
         end
         if success
