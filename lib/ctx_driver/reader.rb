@@ -59,11 +59,7 @@ module CtxDriver
       stage, evidence, command_failure, body = :execute, [], nil, nil
       capture_completed = false
       begin
-        receipt = if supports_session_preservation?
-          @session.send_commands([ command ], preserve_session_on_rejection: true)
-        else
-          @session.send_commands([ command ])
-        end
+        receipt = @session.send_commands([ command ])
         stage = :response
         output = receipt.output
         raise TypeError, "Command output must be text" unless output.is_a?(String)
@@ -106,13 +102,6 @@ module CtxDriver
     ensure
       # Interrupt 与 Thread.kill 不经过 StandardError；未完成回执时禁止继续使用未知同步状态。
       @session_failure ||= command_failure || { code: :command_aborted, stage: stage || :execute }.freeze unless capture_completed
-    end
-
-    # 仅在明确支持时复用命令拒绝后的会话；未知提示符仍由连接器关闭处理。
-    def supports_session_preservation?
-      @session.method(:send_commands).parameters.any? do |kind, name|
-        %i[key keyreq].include?(kind) && name == :preserve_session_on_rejection
-      end
     end
 
     # 连接状态不确定时视为不可用，后续跳过的查询保留首次失败原因。

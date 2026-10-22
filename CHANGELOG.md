@@ -4,6 +4,10 @@ Changes to the public contract are recorded here. Versions follow Semantic Versi
 
 ## Unreleased
 
+## 0.2.6 (2026-10-23)
+
+- Validate single-command receipts consistently without legacy rejection hooks; preserve borrowed-session ownership.
+
 ## 0.2.5 (2026-10-21)
 
 - Add repository-specific AGENTS.md guidance for responsibilities, Ruby conventions, evidence boundaries and validation.

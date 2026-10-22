@@ -75,30 +75,6 @@ RSpec.describe CtxDriver::Reader do
     expect(reader.read("show next")).to be_success
   end
 
-  it "only enables rejection preservation when the adapter explicitly declares the option" do
-    calls = []
-    adapter = Object.new
-    adapter.define_singleton_method(:connected?) { true }
-    result = receipt
-    adapter.define_singleton_method(:send_commands) do |commands, preserve_session_on_rejection: false|
-      calls << [ commands, preserve_session_on_rejection ]
-      result
-    end
-    expect(described_class.new(session: adapter).read("show test")).to be_success
-    expect(calls).to eq([ [ [ "show test" ], true ] ])
-  end
-
-  it "does not infer rejection support from a generic keyword sink" do
-    adapter = Object.new
-    adapter.define_singleton_method(:connected?) { true }
-    result = receipt
-    adapter.define_singleton_method(:send_commands) do |_commands, **options|
-      raise "unexpected options" unless options.empty?
-      result
-    end
-    expect(described_class.new(session: adapter).read("show test")).to be_success
-  end
-
   it "preserves the first disconnect cause and skips all later queries" do
     allow(session).to receive(:connected?).and_return(true, false)
     expect(session).to receive(:send_commands).with([ "show first" ]).once.and_raise(IOError, "transport private")
