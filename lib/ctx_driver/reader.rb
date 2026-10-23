@@ -58,6 +58,7 @@ module CtxDriver
     def capture_command(command, started_at)
       stage, evidence, command_failure, body = :execute, [], nil, nil
       capture_completed = false
+      receipt_validated = false
       begin
         receipt = @session.send_commands([ command ])
         stage = :response
@@ -70,6 +71,7 @@ module CtxDriver
         unless [ true, false ].include?(success) && steps.is_a?(Array) && (success ? steps.one? : steps.size <= 1)
           raise TypeError, "One query must return one completed command"
         end
+        receipt_validated = true
         if success
           body = receipt.value!
           raise TypeError, "Command body must be text" unless body.is_a?(String)
@@ -81,6 +83,8 @@ module CtxDriver
       rescue StandardError => error
         fallback = stage == :execute ? :command_execution_failed : :invalid_command_result
         command_failure = Failure.details(error, fallback: fallback, stage: stage)
+        # 在线状态不能证明畸形回执对应的单命令边界；不复用未知同步状态。
+        @session_failure ||= command_failure if stage == :response && !receipt_validated
       end
       # 外部时钟回调只在正文与摘要固定后调用，不能复用本条响应缓冲区。
       begin

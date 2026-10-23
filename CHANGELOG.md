@@ -4,6 +4,11 @@ Changes to the public contract are recorded here. Versions follow Semantic Versi
 
 ## Unreleased
 
+## 0.2.7 (2026-10-23)
+
+- Skip subsequent queries after malformed single-command receipts while preserving valid command failure and local decoding isolation.
+- Update the documented session protocol and declare the required parser version.
+
 ## 0.2.6 (2026-10-23)
 
 - Validate single-command receipts consistently without legacy rejection hooks; preserve borrowed-session ownership.

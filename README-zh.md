@@ -74,7 +74,7 @@ puts "SHA-256: #{capture.evidence.first[:sha256]}"
 
 `Reader.new(session:, clock:).read(command)` 返回 `Capture`。通过 `success?`、`skipped?`、`failure`、`evidence` 检查结果；正文仅显式通过 `body` 读取，`to_h`、`as_json`、`inspect` 不包含正文。`Reader`、借用会话适配器 `Session` 及其回执的 `inspect`/`PP` 不展开调用方对象，也不查询连接状态；回执的字符串插值同样安全。原始输出与解码正文仍可通过回执的显式 API 访问。
 
-自定义会话实现 `connected?` 和 `send_commands([command])`。回执提供 `output`、布尔 `success?`、数组 `steps`、成功正文 `value!` 及失败时的 `error`。成功读取必须只有一个完成步骤。只有会话显式声明 `preserve_session_on_rejection:` 关键字时才传入该选项。
+自定义会话实现 `connected?` 和 `send_commands([command])`。回执提供 `output`、布尔 `success?`、数组 `steps`、成功正文 `value!` 及失败时的 `error`。成功读取必须只有一个完成步骤。失败回执最多包含一个完成步骤。输出、状态或步骤数量非法时，即使连接仍在线也会跳过后续查询；回执有效后的本地解码或时钟失败不改变会话同步状态。
 
 net-connector 仍为可选依赖，使用适配器的宿主需自行声明 `gem "net-connector", ">= 0.13.0"`。`examples/connector.rb` 通过本地 PTY 子进程验证已安装连接器，不连接网络设备。
 

@@ -28,7 +28,7 @@ capture.evidence # command / sha256 / bytes / observed_at
 `output` 用于原始来源摘要，`value!` 是连接器处理后的正文，两者不要求相等。
 自定义协议由宿主清理正文；net-connector 0.13.0 及以上版本的原生 `Net::Connector::Base` 由可选适配器绑定当前完整提示符，并在证据摘要生成后去除命令回显及提示符。适配器不主动加载 net-connector，不连接、不提权。调用方只传目录中已批准的查询。
 
-只有会话方法显式声明 `preserve_session_on_rejection:` 时，才传 `true`。
+失败回执最多包含一个完成步骤。回执输出、状态或步骤数量非法时，连接在线不能证明同步状态，Reader 保留首个失败并跳过后续查询；回执有效后的本地解码或时钟错误仍按单命令失败隔离。
 原生 net-connector 关闭拒绝命令后的会话时，Reader 保留该关闭状态；自定义适配器只有确认会话仍可用，才允许下一条独立命令。
 断线或状态未知时记忆首个原因，后续命令返回 skipped，不自动重连或重放。
 `reader.failure` 可供不提交命令的分支检查会话状态。

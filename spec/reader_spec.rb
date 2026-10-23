@@ -112,26 +112,57 @@ RSpec.describe CtxDriver::Reader do
     expect(capture.failure).to include(code: :invalid_command_result, stage: :response)
     expect(capture.evidence.first[:sha256]).to eq(Digest::SHA256.hexdigest(output))
     expect(capture.body).to be_nil
+    expect(reader.read("show next")).to be_skipped
   end
 
   [ [], [ Object.new, Object.new ], nil ].each do |steps|
     it "rejects a successful receipt with #{steps&.size.inspect} completed steps and retains provenance" do
       allow(receipt).to receive(:steps).and_return(steps)
-      expect(session).to receive(:send_commands).and_return(receipt)
+      expect(session).to receive(:send_commands).once.and_return(receipt)
       expect(receipt).not_to receive(:value!)
       capture = reader.read("show test")
       expect(capture.failure).to include(code: :invalid_command_result, stage: :response)
       expect(capture.evidence.first[:sha256]).to eq(Digest::SHA256.hexdigest(output))
+      skipped = reader.read("show next")
+      expect(skipped).to be_skipped
+      expect(skipped.failure).to eq(capture.failure)
+      expect(skipped.evidence).to be_empty
+    end
+  end
+
+  [ { output: nil }, { success?: nil }, { success?: "yes" } ].each do |fields|
+    it "stops reuse after a malformed #{fields.keys.first} receipt field" do
+      allow(receipt).to receive_messages(fields)
+      expect(session).to receive(:send_commands).once.and_return(receipt)
+      first = reader.read("show first")
+      expect(first.failure).to include(code: :invalid_command_result, stage: :response)
+      skipped = reader.read("show next")
+      expect(skipped).to be_skipped
+      expect(skipped.failure).to eq(first.failure)
+      expect(skipped.evidence).to be_empty
+    end
+  end
+
+  [ [], [ Object.new ] ].each do |steps|
+    it "continues after a valid failed receipt with #{steps.size} completed steps" do
+      failed = double(:receipt, output: output, success?: false, steps: steps, error: IOError.new("private"))
+      expect(session).to receive(:send_commands).with([ "show first" ]).once.and_return(failed)
+      expect(session).to receive(:send_commands).with([ "show next" ]).once.and_return(receipt)
+      first = reader.read("show first")
+      expect(first.failure).to include(code: :command_failed, stage: :execute)
+      expect(reader.read("show next")).to be_success
     end
   end
 
   it "keeps source evidence when clean body extraction raises" do
-    expect(session).to receive(:send_commands).and_return(receipt)
+    expect(session).to receive(:send_commands).twice.and_return(receipt)
     allow(receipt).to receive(:value!).and_raise(ArgumentError, "body secret")
     capture = reader.read("show test")
     expect(capture.failure).to include(code: :invalid_command_result, stage: :response)
     expect(capture.evidence).not_to be_empty
     expect(capture.body).to be_nil
+    allow(receipt).to receive(:value!).and_return(body)
+    expect(reader.read("show next")).to be_success
   end
 
   it "rejects invalid commands before consulting or executing the session" do
@@ -229,17 +260,19 @@ RSpec.describe CtxDriver::Reader do
   end
 
   it "keeps invalid observation clocks as response failures without publishing partial evidence" do
-    expect(session).to receive(:send_commands).and_return(receipt)
+    expect(session).to receive(:send_commands).twice.and_return(receipt)
     calls = 0
     clock = lambda do
       calls += 1
       calls == 2 ? "invalid time" : time
     end
-    capture = described_class.new(session: session, clock: clock).read("show test")
+    driver = described_class.new(session: session, clock: clock)
+    capture = driver.read("show test")
 
     expect(capture.failure).to include(code: :invalid_command_result, stage: :response, error_type: "TypeError")
     expect(capture.evidence).to be_empty
     expect(capture.body).to be_nil
+    expect(driver.read("show next")).to be_success
   end
 
   it "propagates cancellation from the observation clock and prevents reuse" do
