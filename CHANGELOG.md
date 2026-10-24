@@ -4,6 +4,10 @@ Changes to the public contract are recorded here. Versions follow Semantic Versi
 
 ## Unreleased
 
+## 0.2.8 (2026-10-24)
+
+- Leave the ctx_parser dependency unconstrained in the gemspec; applications select and lock a verified dependency combination.
+
 ## 0.2.7 (2026-10-23)
 
 - Skip subsequent queries after malformed single-command receipts while preserving valid command failure and local decoding isolation.
