@@ -4,6 +4,11 @@ Changes to the public contract are recorded here. Versions follow Semantic Versi
 
 ## Unreleased
 
+## 0.4.0 (2026-10-29)
+
+- Use the parser command contract for borrowed-session reads; preserve single-command identity and stop-after-desynchronization behavior.
+- Require ctx_parser 0.4.x.
+
 ## 0.3.0 (2026-10-29)
 
 - Require every completed receipt step to identify the exact requested command as `{ command: String }`; malformed identities stop later queries while retaining raw fingerprints. Normalize native connector steps at the session boundary.

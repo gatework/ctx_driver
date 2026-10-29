@@ -7,7 +7,7 @@ require "net/connector"
 class ExampleConnectorTransport < Net::Connector::Transports::Pty
   # 子进程先给出提示符，随后逐条回显查询和合成正文。
   def argv
-    [ RbConfig.ruby, "-e", '$stdout.sync = true; print "device>"; while (line = gets); print line, "  interface Ethernet1/1 up\r\ndevice>"; end' ]
+    [ RbConfig.ruby, "--disable-gems", "-e", '$stdout.sync = true; print "device>"; while (line = gets); print line, "  interface Ethernet1/1 up\r\ndevice>"; end' ]
   end
 end
 

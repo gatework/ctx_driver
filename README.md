@@ -121,3 +121,5 @@ MIT. See [LICENSE](LICENSE).
 
 
 Receipt protocol: each completed step is `{ command: String }` with exactly the requested command bytes. Success requires one step; failure permits zero or one. Opaque placeholder steps are no longer accepted. Missing or mismatched identity yields `invalid_command_result` and stops later queries while retaining raw fingerprints. Session adapts native net-connector steps automatically.
+
+本次使用 ctx_parser 0.4 系列契约；`Result` 新增 `covered_scopes`，单行命令统一由 `CtxParser::Commands.command_text` 校验。跨模块约定见 [ctx_runner 契约迁移](https://github.com/gatework/ctx_runner/blob/main/docs/contracts-2026-10-29.md)。
