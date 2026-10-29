@@ -11,3 +11,7 @@ Configure `RUBYGEMS_API_KEY` as an encrypted secret in the GitHub `release` envi
 A failed publish is not permission to overwrite an existing version. Rerun the failed publish job to retain the original CI artifact. The script verifies an existing RubyGems version before proceeding and rejects different bytes or yanked versions. `workflow_dispatch` is restricted to version tags by the publish validation.
 
 Raw device `*.log`, local secrets, and build outputs are ignored. Package files use an explicit gemspec allowlist; review both the Git index and gem contents before publishing. Tests and examples must use synthetic or sanitized evidence.
+
+For a workspace release, `script/verify_package.rb` also accepts dependency artifacts after the driver gem. Pass them in installation order: ctx_cli, expect-pty, ctx_parser, then the optional net-connector candidate. The verifier installs those exact packages in its isolated GEM_HOME and skips the registry connector install when a connector candidate is supplied.
+
+Candidate installation and registry installation are separate checks. Publish the parser dependency first and confirm its registry availability before running the driver's clean Linux/macOS CI; the release tag must point to the commit whose complete CI matrix passed.
