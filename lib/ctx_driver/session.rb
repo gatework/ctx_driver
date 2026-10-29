@@ -17,7 +17,10 @@ module CtxDriver
       def pretty_print(printer) = printer.text(inspect)
 
       def output = result.output
-      def steps = result.steps
+      # 原生命令对象在适配边界投影为驱动的单命令身份协议。
+      def steps
+        result.steps.map { |step| { command: Command.snapshot(step.command.text) }.freeze }.freeze
+      end
       def success? = result.success?
       def error = result.error
 

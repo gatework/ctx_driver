@@ -8,7 +8,7 @@ body = ("interface Ethernet1/1 up\n" * 200).freeze
 receipt = Data.define(:output, :steps) do
   def success? = true
   def value! = output
-end.new(output: body, steps: [ 1 ])
+end.new(output: body, steps: [ { command: "show interfaces" } ])
 session = Object.new
 session.define_singleton_method(:connected?) { true }
 session.define_singleton_method(:send_commands) { |_| receipt }

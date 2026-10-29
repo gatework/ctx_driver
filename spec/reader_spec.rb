@@ -14,7 +14,7 @@ RSpec.describe CtxDriver::Reader do
   let(:reader) { described_class.new(session: session, clock: -> { time }) }
   let(:body) { +"private command body" }
   let(:output) { +"show test\n#{body}\ndevice#" }
-  let(:receipt) { double(:receipt, output: output, success?: true, steps: [ Object.new ], value!: body) }
+  let(:receipt) { double(:receipt, output: output, success?: true, steps: [ { command: "show test" } ], value!: body) }
 
   it "hides borrowed session and clock internals without querying either during inspection", :aggregate_failures do
     borrowed = Object.new
@@ -72,6 +72,7 @@ RSpec.describe CtxDriver::Reader do
     failed = reader.read("show first")
     expect(failed.failure).to eq(code: :command_execution_failed, stage: :execute, error_type: "IOError")
     expect(failed.to_h.to_json).not_to include("private exception")
+    allow(receipt).to receive(:steps).and_return([ { command: "show next" } ])
     expect(reader.read("show next")).to be_success
   end
 
@@ -88,6 +89,7 @@ RSpec.describe CtxDriver::Reader do
   end
 
   it "keeps a completed capture when the subsequent state check fails" do
+    allow(receipt).to receive(:steps).and_return([ { command: "show first" } ])
     expect(session).to receive(:connected?).ordered.and_return(true)
     expect(session).to receive(:send_commands).ordered.and_return(receipt)
     expect(session).to receive(:connected?).ordered.and_raise(IOError, "state private")
@@ -100,6 +102,20 @@ RSpec.describe CtxDriver::Reader do
       allow(session).to receive(:connected?).and_return(state)
       expect(session).not_to receive(:send_commands)
       expect(reader.read("show test").failure).to include(code: :session_state_failed)
+    end
+  end
+
+  [ { command: "show different" }, {}, { command: nil }, Object.new ].each do |step|
+    it "rejects a receipt without the requested command identity and stops later sends" do
+      allow(receipt).to receive(:steps).and_return([ step ])
+      expect(session).to receive(:send_commands).with([ "show requested" ]).once.and_return(receipt)
+      expect(receipt).not_to receive(:value!)
+      capture = reader.read("show requested")
+
+      expect(capture).not_to be_success
+      expect(capture.failure).to include(code: :invalid_command_result, stage: :response)
+      expect(capture.evidence.first[:sha256]).to eq(Digest::SHA256.hexdigest(output))
+      expect(reader.read("show next")).to be_skipped
     end
   end
 
@@ -143,14 +159,15 @@ RSpec.describe CtxDriver::Reader do
     end
   end
 
-  [ [], [ Object.new ] ].each do |steps|
+  [ [], [ { command: "show first" } ] ].each do |steps|
     it "continues after a valid failed receipt with #{steps.size} completed steps" do
       failed = double(:receipt, output: output, success?: false, steps: steps, error: IOError.new("private"))
       expect(session).to receive(:send_commands).with([ "show first" ]).once.and_return(failed)
       expect(session).to receive(:send_commands).with([ "show next" ]).once.and_return(receipt)
       first = reader.read("show first")
       expect(first.failure).to include(code: :command_failed, stage: :execute)
-      expect(reader.read("show next")).to be_success
+      allow(receipt).to receive(:steps).and_return([ { command: "show next" } ])
+    expect(reader.read("show next")).to be_success
     end
   end
 
@@ -162,6 +179,7 @@ RSpec.describe CtxDriver::Reader do
     expect(capture.evidence).not_to be_empty
     expect(capture.body).to be_nil
     allow(receipt).to receive(:value!).and_return(body)
+    allow(receipt).to receive(:steps).and_return([ { command: "show next" } ])
     expect(reader.read("show next")).to be_success
   end
 
@@ -179,6 +197,7 @@ RSpec.describe CtxDriver::Reader do
   end
 
   it "stops reuse after cancellation during execution or response decoding" do
+    allow(receipt).to receive(:steps).and_return([ { command: "show first" } ])
     [ :execute, :response ].each do |stage|
       adapter = Object.new
       adapter.define_singleton_method(:connected?) { true }
@@ -242,7 +261,7 @@ RSpec.describe CtxDriver::Reader do
     result = Data.define(:output, :steps) do
       def success? = true
       def value! = output
-    end.new(output: shared, steps: [ 1 ])
+    end.new(output: shared, steps: [ { command: "show test" } ])
     expect(session).to receive(:send_commands).and_return(result)
     calls = 0
     clock = lambda do
@@ -272,10 +291,12 @@ RSpec.describe CtxDriver::Reader do
     expect(capture.failure).to include(code: :invalid_command_result, stage: :response, error_type: "TypeError")
     expect(capture.evidence).to be_empty
     expect(capture.body).to be_nil
+    allow(receipt).to receive(:steps).and_return([ { command: "show next" } ])
     expect(driver.read("show next")).to be_success
   end
 
   it "propagates cancellation from the observation clock and prevents reuse" do
+    allow(receipt).to receive(:steps).and_return([ { command: "show first" } ])
     expect(session).to receive(:send_commands).once.and_return(receipt)
     calls = 0
     clock = lambda do
@@ -325,7 +346,7 @@ RSpec.describe CtxDriver::Reader do
       result = Data.define(:output, :steps) do
         def success? = true
         def value! = "body"
-      end.new(output: "raw", steps: [1])
+      end.new(output: "raw", steps: [ { command: "show test" } ])
       session = Object.new
       session.define_singleton_method(:connected?) { true }
       session.define_singleton_method(:send_commands) { |_| result }

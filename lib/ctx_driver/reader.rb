@@ -71,6 +71,9 @@ module CtxDriver
         unless [ true, false ].include?(success) && steps.is_a?(Array) && (success ? steps.one? : steps.size <= 1)
           raise TypeError, "One query must return one completed command"
         end
+        unless steps.all? { |step| step.is_a?(Hash) && step[:command].is_a?(String) && step[:command].b == command.b }
+          raise TypeError, "Completed step must belong to the requested command"
+        end
         receipt_validated = true
         if success
           body = receipt.value!

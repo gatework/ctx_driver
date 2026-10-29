@@ -118,3 +118,6 @@ CI 在 Linux、macOS 上执行测试、lint、示例、构建和隔离安装。`
 ## 许可证
 
 MIT，见 [LICENSE](LICENSE)。
+
+
+回执协议：每个已完成步骤必须是 `{ command: String }`，命令字节与请求完全一致。成功恰好一个步骤；失败可以零或一个。旧的不透明占位步骤不再支持；缺失或不匹配标记 `invalid_command_result` 并停止后续查询，保留原始字节摘要。原生 net-connector 步骤由 Session 自动适配。

@@ -4,6 +4,10 @@ Changes to the public contract are recorded here. Versions follow Semantic Versi
 
 ## Unreleased
 
+## 0.3.0 (2026-10-29)
+
+- Require every completed receipt step to identify the exact requested command as `{ command: String }`; malformed identities stop later queries while retaining raw fingerprints. Normalize native connector steps at the session boundary.
+
 ## 0.2.8 (2026-10-24)
 
 - Leave the ctx_parser dependency unconstrained in the gemspec; applications select and lock a verified dependency combination.

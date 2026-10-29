@@ -48,6 +48,7 @@ RSpec.describe CtxDriver::Session do
       expect(display).to include("CtxDriver::Session::Response")
       expect(display).not_to include("RAW_SENTINEL", "router#", "@raw", "result=")
     end
+    expect(response.steps).to eq([ { command: "show test" } ])
     expect(response.output).to eq(raw)
     expect(response.value!).to eq("RAW_SENTINEL\n")
   end

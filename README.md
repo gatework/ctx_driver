@@ -118,3 +118,6 @@ Publish dependency gems first. A Git tag, a successful build, or a workflow file
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+
+Receipt protocol: each completed step is `{ command: String }` with exactly the requested command bytes. Success requires one step; failure permits zero or one. Opaque placeholder steps are no longer accepted. Missing or mismatched identity yields `invalid_command_result` and stops later queries while retaining raw fingerprints. Session adapts native net-connector steps automatically.
