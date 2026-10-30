@@ -29,19 +29,19 @@ RSpec.describe CtxDriver::Capture do
 
   it "detaches all receipt metadata while keeping raw body access explicit" do
     command, body = +"show test", +"PRIVATE_BODY"
-    evidence = [ { command: command, tags: [ +"original" ] } ]
+    evidence = [ { command: command, context: { tags: [ +"original" ] } } ]
     capture = described_class.new(**attributes.merge(command: command, body: body, evidence: evidence))
     command.clear
     body.clear
-    evidence.first[:tags].first.clear
+    evidence.first[:context][:tags].first.clear
     time.utc
 
     expect(capture.command).to eq("show test")
     expect(capture.body).to eq("PRIVATE_BODY")
-    expect(capture.evidence.first[:tags]).to eq([ "original" ])
+    expect(capture.evidence.first[:context][:tags]).to eq([ "original" ])
     expect(capture.started_at).not_to equal(time)
     expect(capture.started_at).to be_frozen
-    expect { capture.evidence.first[:tags] << "changed" }.to raise_error(FrozenError)
+    expect { capture.evidence.first[:context][:tags] << "changed" }.to raise_error(FrozenError)
     [ capture.to_h, capture.as_json, capture.inspect, capture.to_s ].each do |metadata|
       expect(metadata.to_s).not_to include("PRIVATE_BODY")
     end

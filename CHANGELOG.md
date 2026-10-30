@@ -4,6 +4,10 @@ Changes to the public contract are recorded here. Versions follow Semantic Versi
 
 ## Unreleased
 
+## 0.5.0 (2026-10-30)
+
+- Introduce immutable `Source` values with validated digest/byte pairs, timestamps and domain context. Retain acquired digests on clock failure. Share single-command receipt validation between reads and writes; borrowed configuration writes never reconnect.
+
 ## 0.4.0 (2026-10-29)
 
 - Use the parser command contract for borrowed-session reads; preserve single-command identity and stop-after-desynchronization behavior.

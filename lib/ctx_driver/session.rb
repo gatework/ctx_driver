@@ -47,6 +47,13 @@ module CtxDriver
     # 复用连接器的真实状态，避免失败后隐式重连。
     def connected? = @session.connected?
 
+    # 配置写入使用连接器的模式提示符；借用已连接会话，不能触发隐式重连。
+    def write_command(command)
+      raise IOError, "Session is closed" unless connected?
+      command = Command.snapshot(command)
+      Response.new(@session.execute_command(command, output_sensitive: true))
+    end
+
     # 单命令操作保护响应正文，并绑定当前完整提示符。
     def send_commands(commands)
       raise ArgumentError, "Expected one query" unless commands.is_a?(Array) && commands.one?

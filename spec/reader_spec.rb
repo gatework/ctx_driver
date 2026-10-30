@@ -59,9 +59,9 @@ RSpec.describe CtxDriver::Reader do
     expect(capture).to be_success
     expect(capture.body).to eq("private command body")
     expect(capture.body).to be_frozen
-    expect(capture.evidence).to eq([ { command: "show test", sha256: Digest::SHA256.hexdigest(output),
+    expect(capture.evidence.map(&:to_h)).to eq([ { command: "show test", sha256: Digest::SHA256.hexdigest(output),
       bytes: output.bytesize, observed_at: "2026-10-16T04:00:00.000000Z" } ])
-    expect { capture.evidence.first[:bytes] = 0 }.to raise_error(FrozenError)
+    expect { capture.evidence.first.context[:changed] = true }.to raise_error(FrozenError)
     expect([ capture.to_h, capture.as_json, capture.inspect ].to_json).not_to include("private command body", "device#")
     expect(time.utc_offset).to eq(28_800)
   end
@@ -278,7 +278,7 @@ RSpec.describe CtxDriver::Reader do
     expect(shared).not_to be_frozen
   end
 
-  it "keeps invalid observation clocks as response failures without publishing partial evidence" do
+  it "retains acquired digests when the observation clock fails" do
     expect(session).to receive(:send_commands).twice.and_return(receipt)
     calls = 0
     clock = lambda do
@@ -289,7 +289,8 @@ RSpec.describe CtxDriver::Reader do
     capture = driver.read("show test")
 
     expect(capture.failure).to include(code: :invalid_command_result, stage: :response, error_type: "TypeError")
-    expect(capture.evidence).to be_empty
+    expect(capture.evidence.first.sha256).to eq(Digest::SHA256.hexdigest(output))
+    expect(capture.evidence.first.observed_at).to be_nil
     expect(capture.body).to be_nil
     allow(receipt).to receive(:steps).and_return([ { command: "show next" } ])
     expect(driver.read("show next")).to be_success

@@ -5,6 +5,7 @@ require "time"
 require_relative "capture"
 require_relative "failure"
 require_relative "session"
+require_relative "receipt"
 
 module CtxDriver
   # 借用已打开会话逐条独立查询；连接归属与领域判断由外部负责。
@@ -66,14 +67,7 @@ module CtxDriver
         raise TypeError, "Command output must be text" unless output.is_a?(String)
 
         evidence = [ { command: command, sha256: Digest::SHA256.hexdigest(output), bytes: output.bytesize } ]
-        success = receipt.success?
-        steps = receipt.steps
-        unless [ true, false ].include?(success) && steps.is_a?(Array) && (success ? steps.one? : steps.size <= 1)
-          raise TypeError, "One query must return one completed command"
-        end
-        unless steps.all? { |step| step.is_a?(Hash) && step[:command].is_a?(String) && step[:command].b == command.b }
-          raise TypeError, "Completed step must belong to the requested command"
-        end
+        success = Receipt.validate(receipt, command: command)
         receipt_validated = true
         if success
           body = receipt.value!
@@ -96,7 +90,6 @@ module CtxDriver
           evidence = [ evidence.first.merge(observed_at: observed_at) ]
         end
       rescue StandardError => error
-        evidence = []
         command_failure ||= Failure.details(error, fallback: :invalid_command_result, stage: :response)
       end
       state_failure = detect_session_failure

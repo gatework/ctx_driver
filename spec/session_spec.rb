@@ -21,6 +21,18 @@ RSpec.describe CtxDriver::Session do
     expect(session).not_to receive(:close)
   end
 
+  it "refuses configuration writes on a closed borrowed session without reconnecting" do
+    allow(session).to receive(:connected?).and_return(false)
+    expect(session).not_to receive(:execute_command)
+    expect { described_class.new(session).write_command("configure terminal") }.to raise_error(IOError)
+  end
+
+  it "returns a verifiable single-command receipt for sensitive configuration writes" do
+    expect(session).to receive(:execute_command).with("show test", output_sensitive: true).once.and_return(result_for("show test\r\nrouter#"))
+    response = described_class.new(session).write_command("show test")
+    expect(CtxDriver::Receipt.validate(response, command: "show test")).to be(true)
+  end
+
   it "hides borrowed connector internals without consulting its state during inspection", :aggregate_failures do
     borrowed = Object.new
     borrowed.instance_variable_set(:@password, "PASSWORD_SENTINEL")
@@ -84,7 +96,7 @@ RSpec.describe CtxDriver::Session do
     allow(session).to receive(:execute_operation).and_return(result_for(raw))
     capture = CtxDriver::Reader.new(session: session).read("show test")
     expect(capture.failure).to include(code: :invalid_output_encoding, stage: :response)
-    expect(capture.evidence.first).to include(sha256: Digest::SHA256.hexdigest(raw), bytes: raw.bytesize)
+    expect(capture.evidence.first.to_h).to include(sha256: Digest::SHA256.hexdigest(raw), bytes: raw.bytesize)
     expect(capture.body).to be_nil
   end
 
@@ -125,7 +137,7 @@ RSpec.describe CtxDriver::Session do
     capture = reader.read("show first")
     expect(capture.failure).to eq(code: :command_timeout, stage: :execute, error_type: "Net::Connector::CommandTimeout")
     expect(capture.body).to be_nil
-    expect(capture.evidence.first).to include(bytes: 0, sha256: Digest::SHA256.hexdigest(""))
+    expect(capture.evidence.first.to_h).to include(bytes: 0, sha256: Digest::SHA256.hexdigest(""))
     expect(capture.to_h.to_s).not_to include("private timeout")
     skipped = reader.read("show next")
     expect(skipped).to be_skipped
