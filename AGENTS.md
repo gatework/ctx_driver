@@ -54,7 +54,7 @@ bundle exec rake build
 - 跨仓库联调与锁定依赖测试分别运行并报告。`RUBYLIB` 联调通过不证明已发布依赖兼容；使用 `script/verify_package.rb` 在隔离安装中验证候选包。
 - 只有明确要求发布时才执行交付流程，顺序为 ctx_parser → ctx_driver → ctx_checker；核对精确提交的 CI、制品、校验和及安装读回结果。仓库可见性仅按当前授权调整。
 
-独立安装验证：`ruby script/verify_package.rb pkg/ctx_driver-*.gem`；该脚本从注册表安装依赖，不接受依赖候选包参数。候选栈联调可使用 ctx_checker 的包验证脚本。修改原生适配时运行完整 rake 中的 PTY 测试。基准入口：`bundle exec ruby -Ilib benchmark/reader.rb`、`benchmark/body.rb`。
+独立安装验证：`ruby script/verify_package.rb pkg/ctx_driver-*.gem`；脚本可接收显式依赖候选包，并在独立 GEM_HOME 中验证安装。修改原生适配时运行完整 rake 中的 PTY 测试。基准入口：`bundle exec ruby -Ilib benchmark/reader.rb`、`benchmark/body.rb`。
 
 联调当前相邻 parser 源码：
 

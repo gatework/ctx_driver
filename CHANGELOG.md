@@ -4,6 +4,10 @@ Changes to the public contract are recorded here. Versions follow Semantic Versi
 
 ## Unreleased
 
+## 0.5.1 (2026-10-30)
+
+- Accept ctx_parser 0.4 and 0.5 while preserving command, receipt and source contracts.
+
 ## 0.5.0 (2026-10-30)
 
 - Introduce immutable `Source` values with validated digest/byte pairs, timestamps and domain context. Retain acquired digests on clock failure. Share single-command receipt validation between reads and writes; borrowed configuration writes never reconnect.
